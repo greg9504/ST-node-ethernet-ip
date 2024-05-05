@@ -528,6 +528,64 @@ browser.on("Device Disconnected", device => {
     // 'device' is the disconnected device
 })
 ```
+### getAttributeSingle/setAttributeSingle
+`Read and Write to Explicit generic ethernet/ip`
+```typescript
+import { ControllerManager, TagList, IO, Tag, Controller } from "st-ethernet-ip";
+async function main() {
+const PLC = new Controller();
+// connect to the SEW VFD, do not do setup, while the VFD supports 
+// Identity Class 0x01 (readControllerProps), it does not support
+// Class 0x6b for tags (getControllerTagList)
+PLC.connect("192.168.1.159", 0,false).then(async () => {
+    // write process output data, there are 3 words, PO1/PO2/PO3
+    // example configuration on the VFD:
+    // PO1 = Control Word (direction of rotation, control command, param set, etc) (0x0005)
+    // PO2 = Setpoint Speed (rpm of motor) (6000 rpm, encoded as 6000/0.2 = 30000 = 0x7530)
+    // PO3 = Unassigned (set to 0x0000)
+    const buf = Buffer.from("050030750000", 'hex');
+    await PLC.setAttributeSingle(0x04,120, 3, buf );// class 0x04 Assembly Object, Instance 120 (decimal) output process data, attribute 3
+    console.log('wrote PO data');
+    // read the process input data, that is the actual values of the drive
+    // example configuration
+    // PI1 = Status Word
+    // PI2 = Actual Speed
+    // PI3 = Output Current
+    const value = await PLC.getAttributeSingle(0x04, 130, 3);// class 0x04 Assembly Object, Instance 130 (decimal) input process data, attribute 3
+    console.log('Got actual values from VFD: ' + value.toString('hex'));
+    //SEW drive alays returns 10 words, we only care about the first 3
+
+    //now read a parameter setting, this is done using the Register Object class 0.07
+    //data needs to be passed in the getAttributeSingle call to identify which parameter
+    //is to be read
+    // read parameter 006 Motor Utilization, parameter index is 0x2083
+    const paraBuf = Buffer.from("832000000000000000000000", 'hex');
+    // paramBuf is in format of SEW paameter channel:
+    // Index:       UINT : SEW parameter index (NOT the parameter number)
+    // Data:        UDINT : Data(32 bit) 
+    // SubIndex:    BYTE: Sew unit subindex (usually 0)
+    // Reserved:    BYTE: 0
+    // SubAddress1: BYTE: 0 if Parameter of Drive or com card, 1-63 for sbus
+    // SubChannel1: BYTE: 0 if Parameter of Drive or com card, 2 sbus
+    // SubAddress2: BYTE: 0
+    // SubChannel2: BYTE: 0
+    const paramValue = await PLC.getAttributeSingle(0x07, 1, 4, paraBuf); //class 0x07 Register, instance 1 to read (2 to set), attribute 4 param value 
+    console.log('Got actual parameter value from VFD: ' + paramValue.toString('hex'));
+    //we can set SEW paramters values as well, instance 2 must be used, the parameter and value is encoded same as for read
+    //but the Data bytes are filled in with the new parameter value.
+    // parameter 130 Speed Ramps1::Ramp t11 up CW, index 0x2116, value 6 seconds (6 seconds is transmitted as 6000)
+    const newParaBuf = Buffer.from("1621701700000000000000000", 'hex');
+    const newParamValue = await PLC.setAttributeSingle(0x07, 2, 4, newParaBuf); //class 0x07 Register, instance 1 to read (2 to set), attribute 4 param value 
+    console.log('Set parameter succeeded');
+
+}).catch((error) => {
+    console.log(error);
+  });
+;
+
+}
+main();
+```
 
 ### New I/O Scanner - ALPHA - NOT FOR PRODUCTION
 
