@@ -4,9 +4,11 @@ const Connection = require("./connection");
 class Controller {
     constructor() {   
         this.connections = [];
+        this.localAddress;
     }
 
     async bind(port = 2222, localAddress) {
+        this.localAddress = localAddress;
         return new Promise((resolve, reject) => {
             this.socket = dgram.createSocket("udp4");
             this.socket.on("error", (error) => {
