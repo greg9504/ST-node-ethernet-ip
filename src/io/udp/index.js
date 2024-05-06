@@ -2,13 +2,26 @@ const dgram = require("dgram");
 const Connection = require("./connection");
 
 class Controller {
-    constructor(port=2222, localAddress) {
-        this.socket = dgram.createSocket("udp4");
-        this.socket.bind({port: port, address: localAddress});
-        this.localAddress = localAddress
-    
+    constructor() {   
         this.connections = [];
-        this._setupMessageEvent();
+    }
+
+    async bind(port = 2222, localAddress) {
+        return new Promise((resolve, reject) => {
+            this.socket = dgram.createSocket("udp4");
+            this.socket.on("error", (error) => {
+                console.log(`Bind error: ${error}`);
+                reject(error);
+            });
+            this.socket.on("listening", () => {
+                console.log("Bind successful");
+                const address = this.socket.address();
+                console.log(`server listening ${address.address}:${address.port}`);
+                this._setupMessageEvent();
+                resolve(true);
+            });
+            this.socket.bind({ port: port, address: localAddress });
+        });
     }
 
     addConnection(config, rpi, address, port=2222) {
