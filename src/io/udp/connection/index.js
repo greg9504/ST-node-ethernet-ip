@@ -5,7 +5,7 @@ import InputMap from "./inputmap";
 import OutputMap from "./outputmap";
 
 class Connection extends EventEmitter {
-    constructor(port=2222, address, config, rpi=10, localAddress) {
+    constructor(port=2222, address, config, rpi=10, localAddress, reconnect = true) {
         super();
         //this.tcpController = new TCPController(true, config.configInstance, config.outputInstance, config.inputInstance);
         this.connected = false;
@@ -29,12 +29,13 @@ class Connection extends EventEmitter {
         let that = this;
         this.localAddress = localAddress;
         this.run = true;
+        this.reconnect=reconnect;
         this._connectTCP(that);
 
         this.inputMap = new InputMap();
         this.outputMap = new OutputMap();
         
-        setInterval(() => that._checkStatus(that), 1000);
+        this._checkStatusId = setInterval(() => that._checkStatus(that), 1000);
     }
 
     generateDataMessage() {
@@ -89,7 +90,7 @@ class Connection extends EventEmitter {
         that.cipCount = 0;
         that.tcpController = new TCPController(true, that.config.configInstance, that.config.outputInstance, that.config.inputInstance);
         that.tcpController.rpi = that.rpi;
-        that.tcpController.timeout_sp = 2000;
+        that.tcpController.timeout_sp = 4000;
         that.tcpController.connect(that.address, 0, that.localAddress)
             .then ( () => {
                 that.OTid = that.tcpController.OTconnectionID;
@@ -98,7 +99,11 @@ class Connection extends EventEmitter {
             .catch(() => {
                 that.lastDataTime = 0;
                 that.connected = false;
-                setTimeout(() => that._connectTCP(that), that.rpi * 20);
+                if (that.run && that.reconnect) {
+                    setTimeout(() => that._connectTCP(that), that.rpi * 20);
+                } else {
+                    clearInterval(this._checkStatusId);
+                }
             });
     }
 
@@ -108,7 +113,7 @@ class Connection extends EventEmitter {
                 that.emit("disconnected", null);
                 that.TOid = 0;
             }
-            if (!that.tcpController.state.TCP.establishing && that.connected && that.run) setTimeout(() => that._connectTCP(that), that.rpi * 20);
+            if (!that.tcpController.state.TCP.establishing && that.connected && that.run && that.reconnect) setTimeout(() => that._connectTCP(that), that.rpi * 20);
             that.connected = false;
       
         } else {

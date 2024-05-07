@@ -231,7 +231,7 @@ class Controller extends ENIP {
             throw new Error("Invalid slot parameter type, must be either a number or a Buffer");
         }
 
-        const sessid = await super.connect(IP_ADDR);
+        const sessid = await super.connect(IP_ADDR, this.state.timeout_sp);
         if (!sessid) throw new Error("Failed to Register Session with Controller");
         
         this._initializeControllerEventHandlers(); // Connect sendRRData Event
