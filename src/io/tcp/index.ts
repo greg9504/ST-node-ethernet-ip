@@ -442,7 +442,12 @@ class Controller extends ENIP {
 
         this.removeAllListeners("Forward Close");
         
-        const OTconnID = data.readUInt32LE(0); // first 4 Bytes are O->T connection ID 
+        let OTconnID = 1;// id not sent back by some clients
+        //some clients may not include OTconnID in forwardClose response
+        //found while testing with Banner Engineering XS26 safetly controller
+        if (data.length > 0) {
+            OTconnID = data.readUInt32LE(0); // first 4 Bytes are O->T connection ID 
+        }
         super.id_conn = OTconnID;
         super.established_conn = false;
         super.establishing_conn = true;
