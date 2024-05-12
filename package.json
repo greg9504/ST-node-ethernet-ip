@@ -1,6 +1,6 @@
 {
     "name": "st-ethernet-ip",
-    "version": "2.8.2",
+    "version": "2.8.3",
     "description": "A simple node interface for Ethernet/IP.  With changes for Fuxa HMI",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
