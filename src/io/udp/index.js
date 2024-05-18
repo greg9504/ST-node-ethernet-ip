@@ -26,8 +26,8 @@ class Controller {
         });
     }
 
-    addConnection(config, rpi, address, port=2222) {
-        let conn = new Connection(port, address, config, rpi, this.localAddress);
+    addConnection(config, rpi, address, port=2222, reconnect = true) {
+        let conn = new Connection(port, address, config, rpi, this.localAddress, reconnect);
         return this.connections[this.connections.push(conn) - 1];
     }
 
