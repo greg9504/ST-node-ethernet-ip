@@ -210,6 +210,7 @@ class ENIP extends Socket {
                 );
 
                 socket.on("error", () => {
+                    this.destroy();
                     reject(new Error("SOCKET error"));
                 });
             }),

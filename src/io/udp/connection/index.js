@@ -4,10 +4,19 @@ const EventEmitter = require("events");
 import InputMap from "./inputmap";
 import OutputMap from "./outputmap";
 
+const IOConnectionState  = {
+    constructed: -1,
+    waitingForTCPConnection: 0,
+    TCPConnected: 1,
+    TCPError: 2,
+    TCPClosed: 3,
+    UDPRecieved: 4,
+};
 class Connection extends EventEmitter {
     constructor(port=2222, address, config, rpi=10, localAddress, reconnect = true) {
         super();
-        //this.tcpController = new TCPController(true, config.configInstance, config.outputInstance, config.inputInstance);
+        this.tcpController = new TCPController(true, config.configInstance, config.outputInstance, config.inputInstance);
+        
         this.connected = false;
         this.config = config;
         this.lastDataTime = 0;
@@ -26,16 +35,14 @@ class Connection extends EventEmitter {
  
         this.outputData = Buffer.alloc(this.OTsize);
         this.inputData = Buffer.alloc(this.TOsize);
-        let that = this;
+        //let that = this;
         this.localAddress = localAddress;
         this.run = true;
         this.reconnect=reconnect;
-        this._connectTCP(that);
-
+        this._checkStatusId = undefined;
         this.inputMap = new InputMap();
         this.outputMap = new OutputMap();
-        
-        this._checkStatusId = setInterval(() => that._checkStatus(that), 1000);
+        this.state = IOConnectionState.constructed;
     }
 
     generateDataMessage() {
@@ -83,28 +90,50 @@ class Connection extends EventEmitter {
             }
         } 
     }
+    async connect() {
+        await this._connectTCP(this);
+        this._checkStatusId = setInterval(() => this._checkStatus(this), 1000);
+    }
+    async disconnect() {
+        if (this._checkStatusId !== undefined) {
+            clearInterval(this._checkStatusId);
+        }
+        try {
+            await this.tcpController.disconnect();
+            console.log("Graceful IO tcp connection closed");
+        } catch (error) {
+            console.log("error closing IO TCP connection");
+            console.log(error);
+            this.tcpController.destroy();
+            this.tcpController._removeControllerEventHandlers();
+        }
+    }
 
-    _connectTCP(that) {
+    async _connectTCP(that) {
         that.OTsequenceNum = 0;
         that.TOsequenceNum = 0;
         that.cipCount = 0;
-        that.tcpController = new TCPController(true, that.config.configInstance, that.config.outputInstance, that.config.inputInstance);
+        //that.tcpController = new TCPController(true, that.config.configInstance, that.config.outputInstance, that.config.inputInstance);
         that.tcpController.rpi = that.rpi;
         that.tcpController.timeout_sp = 4000;
-        that.tcpController.connect(that.address, 0, that.localAddress)
-            .then ( () => {
-                that.OTid = that.tcpController.OTconnectionID;
-                that.TOid = that.tcpController.TOconnectionID;
-            })
-            .catch(() => {
-                that.lastDataTime = 0;
-                that.connected = false;
-                if (that.run && that.reconnect) {
-                    setTimeout(() => that._connectTCP(that), that.rpi * 20);
-                } else {
-                    clearInterval(this._checkStatusId);
-                }
-            });
+        try {
+            that.state = IOConnectionState.waitingForTCPConnection;
+            await that.tcpController.connect(this.address, 0, this.localAddress);
+            that.state = IOConnectionState.TCPConnected;
+            that.OTid = that.tcpController.OTconnectionID;
+            that.TOid = that.tcpController.TOconnectionID;
+        } catch(error) {
+            that.lastDataTime = 0;
+            that.connected = false;
+            if (that.run && that.reconnect) {
+                that.state = IOConnectionState.waitingForTCPConnection;
+                setTimeout(() => that._connectTCP(that), that.rpi * 20);
+            } else {
+                clearInterval(that._checkStatusId);
+                that.state = IOConnectionState.TCPError;
+                throw(error);
+            } 
+        }
     }
 
     _checkStatus(that) {
@@ -119,6 +148,7 @@ class Connection extends EventEmitter {
         } else {
             if(!that.connected) {
                 that.emit("connected", null);
+                this.state = IOConnectionState.UDPRecieved;
             }
             that.connected = true;
         }
